@@ -1,0 +1,78 @@
+.visual-box {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(6, 16, 29, 0.2), rgba(2, 6, 23, 0.72)),
+    #06101d;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.visual-box canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.warehouse-header {
+  min-height: 36px;
+}
+
+.scene-stats {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(21, 47, 76, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.scene-stats span {
+  color: #b6c7dc;
+  font-size: 12px;
+}
+
+.scene-stats strong {
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.scene-overlay {
+  position: absolute;
+  z-index: 2;
+  left: 12px;
+  bottom: 12px;
+  max-width: min(420px, calc(100% - 28px));
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #dff7ff;
+  background: rgba(2, 6, 23, 0.62);
+  border: 1px solid rgba(103, 232, 249, 0.24);
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+}
+
+.scene-overlay span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.box-tag {
+  min-width: 46px;
+  padding: 4px 8px;
+  color: #07111f;
+  background: #e0f2fe;
+  border: 1px solid rgba(2, 6, 23, 0.12);
+  border-radius: 999px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 900;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+  user-select: none;
+}
