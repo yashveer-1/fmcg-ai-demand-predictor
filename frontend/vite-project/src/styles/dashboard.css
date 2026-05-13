@@ -655,3 +655,60 @@ input {
     grid-template-columns: 290px minmax(560px, 1fr) 290px;
   }
 }
+.bottom {
+  min-height: 0;
+  height: auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  overflow: hidden;
+}
+
+.bottom-card {
+  min-height: 0;
+  max-height: 100%;
+  gap: 8px;
+  padding: 10px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #38bdf8 transparent;
+}
+
+.bottom-card::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+}
+
+.bottom-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bottom-card::-webkit-scrollbar-thumb {
+  background: #38bdf8;
+  border-radius: 999px;
+}
+
+.bottom-card > .stat-card,
+.bottom-card > .health-box,
+.bottom-card > .constraint-item,
+.bottom-card > .order-box,
+.bottom-card > .priority-box {
+  flex: 0 0 auto;
+}
+
+.bottom-card > .stat-card,
+.bottom-card > .health-box,
+.bottom-card > .order-box {
+  min-height: 78px;
+}
+
+.bottom-card > .constraint-item {
+  min-height: 38px;
+}
+
+@media (max-width: 1180px) {
+  .bottom {
+    grid-template-columns: repeat(3, minmax(240px, 1fr));
+    overflow-x: auto;
+  }
+}

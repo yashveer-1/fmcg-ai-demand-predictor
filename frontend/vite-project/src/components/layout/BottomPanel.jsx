@@ -64,7 +64,7 @@ function BottomPanel({ result, dashboardData, selectedInventory }) {
           </p>
         </div>
       </div>
-      <div className="panel bottom-card">
+      <div className="panel bottom-card constraint-panel">
         <h3 className="bottom-title">Constraint Check</h3>
         <div className="constraint-item">
           <span>Lead Time</span>
