@@ -5,6 +5,7 @@ function Truck({ incomingStock = 0, risk = "LOW", onFocus }) {
   const [hovered, setHovered] = useState(false);
   useCursor(hovered);
   const active = risk === "HIGH";
+  const watch = risk === "MODERATE";
 
   return (
     <group
@@ -27,7 +28,7 @@ function Truck({ incomingStock = 0, risk = "LOW", onFocus }) {
         <boxGeometry args={[4, 2, 2]} />
 
         <meshStandardMaterial
-          color={active ? "#ef4444" : "#2563eb"}
+          color={active ? "#ef4444" : watch ? "#f59e0b" : "#2563eb"}
           emissive={hovered ? "#0f766e" : "#000000"}
           emissiveIntensity={hovered ? 0.18 : 0}
           roughness={0.5}
@@ -39,7 +40,7 @@ function Truck({ incomingStock = 0, risk = "LOW", onFocus }) {
 
         <boxGeometry args={[1.5, 1.5, 2]} />
 
-        <meshStandardMaterial color={active ? "#b91c1c" : "#1d4ed8"} roughness={0.45} />
+        <meshStandardMaterial color={active ? "#b91c1c" : watch ? "#d97706" : "#1d4ed8"} roughness={0.45} />
 
       </mesh>
 

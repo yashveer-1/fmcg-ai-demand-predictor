@@ -17,9 +17,20 @@ function LeftPanel({
   );
 
   const handleChange = (e) => {
+    const selectedItem = e.target.name === "sku_id"
+      ? inventory.find(item => item.sku_id === e.target.value)
+      : null;
     const nextForm = {
       ...form,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
+      ...(selectedItem
+        ? {
+            region: selectedItem.region ?? form.region,
+            day: selectedItem.day ?? form.day,
+            month: selectedItem.month ?? form.month,
+            promotion: selectedItem.promotion ?? form.promotion
+          }
+        : {})
     };
 
     setForm(nextForm);
@@ -35,7 +46,9 @@ function LeftPanel({
   const status = result
     ? result.risk === "HIGH"
       ? "Restock Required"
-      : "Shelf Stable"
+      : result.risk === "MODERATE"
+        ? "Buffer Watch"
+        : "Shelf Stable"
     : "Select a SKU to analyze";
 
   return (
@@ -53,7 +66,14 @@ function LeftPanel({
             key={item.sku_id}
             className={form.sku_id === item.sku_id ? "sku-option active-sku" : "sku-option"}
             onClick={() => {
-              const nextForm = { ...form, sku_id: item.sku_id };
+              const nextForm = {
+                ...form,
+                sku_id: item.sku_id,
+                region: item.region ?? form.region,
+                day: item.day ?? form.day,
+                month: item.month ?? form.month,
+                promotion: item.promotion ?? form.promotion
+              };
               setForm(nextForm);
               onSubmit(nextForm);
             }}
@@ -107,7 +127,13 @@ function LeftPanel({
         </div>
       </div>
 
-      <div className={`status-box ${result?.risk === "HIGH" ? "status-danger" : "status-good"}`}>
+      <div className={`status-box ${
+        result?.risk === "HIGH"
+          ? "status-danger"
+          : result?.risk === "MODERATE"
+            ? "status-warning"
+            : "status-good"
+      }`}>
         <span>{status}</span>
         <strong>{form.sku_id}</strong>
       </div>

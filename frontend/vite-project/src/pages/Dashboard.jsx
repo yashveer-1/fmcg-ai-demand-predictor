@@ -22,6 +22,30 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const getRowValue = (row, keys, fallback = undefined) => {
+  const key = keys.find(item => row[item] !== undefined && row[item] !== "");
+  return key ? row[key] : fallback;
+};
+
+const createAnalysisPayload = (form, inventoryItem) => ({
+  ...form,
+  current_stock: inventoryItem?.current_stock,
+  lead_time_days: inventoryItem?.lead_time_days,
+  shelf_capacity: inventoryItem?.shelf_capacity,
+  pending_orders: inventoryItem?.pending_orders,
+  incoming_stock: inventoryItem?.incoming_stock
+});
+
+const getRiskLevel = (currentStock, reorderPoint) => {
+  if (!Number.isFinite(currentStock) || !Number.isFinite(reorderPoint) || reorderPoint <= 0) {
+    return "LOW";
+  }
+
+  if (currentStock < reorderPoint) return "HIGH";
+  if (currentStock < reorderPoint * 1.25) return "MODERATE";
+  return "LOW";
+};
+
 const normalizeAnalysis = (analysis, inventoryItem) => {
   if (!analysis) return null;
 
@@ -31,7 +55,8 @@ const normalizeAnalysis = (analysis, inventoryItem) => {
   const predictedDemand = analysis.predictedDemand ?? 0;
   const safetyStock = Number((predictedDemand * 0.2 * 1.65 * Math.sqrt(leadTimeDays)).toFixed(2));
   const reorderPoint = Number((predictedDemand * leadTimeDays + safetyStock).toFixed(2));
-  const risk = currentStock < reorderPoint ? "HIGH" : "LOW";
+  const risk = analysis.risk ?? getRiskLevel(currentStock, reorderPoint);
+  const stockBuffer = Number((currentStock - reorderPoint).toFixed(2));
 
   return {
     ...analysis,
@@ -44,6 +69,7 @@ const normalizeAnalysis = (analysis, inventoryItem) => {
     pendingOrders: inventoryItem?.pending_orders ?? analysis.pendingOrders,
     incomingStock: inventoryItem?.incoming_stock ?? analysis.incomingStock,
     stockoutGap: Number(Math.max(reorderPoint - currentStock, 0).toFixed(2)),
+    stockBuffer,
     utilization: Number(((currentStock / shelfCapacity) * 100).toFixed(1))
   };
 };
@@ -52,7 +78,9 @@ const parseInventoryCsv = (text) => {
   const lines = text.trim().split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) return [];
 
-  const headers = lines[0].split(",").map(header => header.trim());
+  const normalizeHeader = (header) =>
+    header.trim().replace(/([a-z])([A-Z])/g, "$1_$2").replace(/[\s-]+/g, "_").toLowerCase();
+  const headers = lines[0].split(",").map(normalizeHeader);
 
   return lines.slice(1).map((line, index) => {
     const values = line.split(",").map(value => value.trim());
@@ -62,12 +90,16 @@ const parseInventoryCsv = (text) => {
     }), {});
 
     return {
-      sku_id: row.sku_id || row.sku || `SKU${index + 1}`,
-      current_stock: toNumber(row.current_stock ?? row.stock, 0),
-      lead_time_days: toNumber(row.lead_time_days ?? row.lead_time, 3),
-      shelf_capacity: toNumber(row.shelf_capacity ?? row.capacity, 200),
-      pending_orders: toNumber(row.pending_orders, 0),
-      incoming_stock: toNumber(row.incoming_stock, 0)
+      sku_id: getRowValue(row, ["sku_id", "sku", "skuId"], `SKU${index + 1}`),
+      region: getRowValue(row, ["region", "zone", "hub"], initialForm.region),
+      day: toNumber(getRowValue(row, ["day", "sales_day"], initialForm.day), initialForm.day),
+      month: toNumber(getRowValue(row, ["month", "sales_month"], initialForm.month), initialForm.month),
+      promotion: toNumber(getRowValue(row, ["promotion", "promo", "is_promo"], initialForm.promotion), initialForm.promotion),
+      current_stock: toNumber(getRowValue(row, ["current_stock", "stock", "on_hand", "quantity", "units"], 0), 0),
+      lead_time_days: toNumber(getRowValue(row, ["lead_time_days", "lead_time", "lead_days"], 3), 3),
+      shelf_capacity: toNumber(getRowValue(row, ["shelf_capacity", "capacity", "max_capacity"], 200), 200),
+      pending_orders: toNumber(getRowValue(row, ["pending_orders", "orders_pending", "open_orders"], 0), 0),
+      incoming_stock: toNumber(getRowValue(row, ["incoming_stock", "incoming", "inbound"], 0), 0)
     };
   });
 };
@@ -80,9 +112,6 @@ function Dashboard() {
   const [form, setForm] = useState(initialForm);
   const [uploadedFileName, setUploadedFileName] = useState("");
 
-  const [activeTab, setActiveTab] =
-    useState("Overview");
-
   const inventory = useMemo(
     () => dashboardData?.inventory || [],
     [dashboardData]
@@ -93,10 +122,17 @@ function Dashboard() {
     [form.sku_id, inventory]
   );
 
-  const handleSkuSelect = (sku_id) => {
-    const nextForm = { ...form, sku_id };
-    setForm(nextForm);
-    handleSubmit(nextForm);
+  const buildSkuForm = (sku_id, sourceInventory = inventory) => {
+    const item = sourceInventory.find(nextItem => nextItem.sku_id === sku_id);
+
+    return {
+      ...form,
+      sku_id,
+      region: item?.region ?? form.region,
+      day: item?.day ?? form.day,
+      month: item?.month ?? form.month,
+      promotion: item?.promotion ?? form.promotion
+    };
   };
 
   const handleSubmit = async (nextForm = form) => {
@@ -104,8 +140,8 @@ function Dashboard() {
     setError("");
 
     try {
-      const res = await analyzeInventory(nextForm);
       const inventoryItem = inventory.find(item => item.sku_id === nextForm.sku_id);
+      const res = await analyzeInventory(createAnalysisPayload(nextForm, inventoryItem));
       setResult(normalizeAnalysis(res.data, inventoryItem));
     } catch (err) {
       console.log(err);
@@ -151,7 +187,7 @@ function Dashboard() {
       }
 
       const nextSku = parsedInventory[0].sku_id;
-      const nextForm = { ...form, sku_id: nextSku };
+      const nextForm = buildSkuForm(nextSku, parsedInventory);
 
       setUploadedFileName(file.name);
       setForm(nextForm);
@@ -169,7 +205,7 @@ function Dashboard() {
 
       setError("");
       setLoading(true);
-      const res = await analyzeInventory(nextForm);
+      const res = await analyzeInventory(createAnalysisPayload(nextForm, parsedInventory[0]));
       setResult(normalizeAnalysis(res.data, parsedInventory[0]));
     } catch (err) {
       console.log(err);
@@ -183,13 +219,14 @@ function Dashboard() {
     if (!result) return;
 
     const rows = [
-      ["sku_id", "current_stock", "predicted_demand", "safety_stock", "reorder_point", "risk", "pending_orders", "incoming_stock"],
+      ["sku_id", "current_stock", "predicted_demand", "safety_stock", "reorder_point", "stock_buffer", "risk", "pending_orders", "incoming_stock"],
       [
         form.sku_id,
         result.currentStock,
         result.predictedDemand,
         result.safetyStock,
         result.reorderPoint,
+        result.stockBuffer,
         result.risk,
         result.pendingOrders ?? "",
         result.incomingStock ?? ""
@@ -207,11 +244,8 @@ function Dashboard() {
   return (
     <div className="dashboard">
       <TopNavbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
         inventory={inventory}
         selectedSku={form.sku_id}
-        onSelectSku={handleSkuSelect}
       />
 
       {error && <div className="app-banner">{error}</div>}
@@ -229,7 +263,6 @@ function Dashboard() {
           uploadedFileName={uploadedFileName}
         />
         <MiddlePanel
-          activeTab={activeTab}
           result={result}
           inventory={inventory}
           selectedSku={form.sku_id}

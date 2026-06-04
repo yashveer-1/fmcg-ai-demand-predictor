@@ -1,4 +1,4 @@
-import { Html, useCursor } from "@react-three/drei";
+import { useCursor } from "@react-three/drei";
 import { useState } from "react";
 
 function ProductBox({
@@ -40,11 +40,6 @@ function ProductBox({
           roughness={0.55}
         />
       </mesh>
-      {selected && (
-        <Html distanceFactor={12} position={[0, 0.62, 0]} center>
-          <div className="box-tag">{label}</div>
-        </Html>
-      )}
     </group>
   );
 }

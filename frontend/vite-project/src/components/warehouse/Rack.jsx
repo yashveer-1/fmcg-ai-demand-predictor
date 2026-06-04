@@ -1,3 +1,4 @@
+import { Html } from "@react-three/drei";
 import ProductBox from "./ProductBox";
 
 const palette = ["#38bdf8", "#34d399", "#f59e0b", "#fb7185", "#a78bfa", "#22d3ee"];
@@ -12,17 +13,32 @@ function Rack({
   const currentStock = analysis?.currentStock ?? item?.current_stock ?? 0;
   const capacity = analysis?.shelfCapacity ?? item?.shelf_capacity ?? 200;
   const fillRatio = capacity ? Math.min(currentStock / capacity, 1) : 0;
-  const visibleBoxes = Math.max(1, Math.ceil(fillRatio * 6));
-  const risk = analysis?.risk === "HIGH";
-  const shelfColor = risk && selected ? "#dc2626" : selected ? "#2563eb" : "#1f3b57";
-  const positions = [
-    [-1, 0.9, 0],
-    [0, 0.9, 0],
-    [1, 0.9, 0],
-    [-1, 2.2, 0],
-    [0, 2.2, 0],
-    [1, 2.2, 0]
-  ];
+  const maxVisibleBoxes = 24;
+  const visibleBoxes = Math.max(1, Math.ceil(fillRatio * maxVisibleBoxes));
+  const risk = analysis?.risk;
+  const highRisk = risk === "HIGH";
+  const moderateRisk = risk === "MODERATE";
+  const shelfColor = highRisk && selected
+    ? "#dc2626"
+    : moderateRisk && selected
+      ? "#d97706"
+      : selected
+        ? "#2563eb"
+        : "#1f3b57";
+  const unitsPerBox = Math.max(1, Math.round(currentStock / visibleBoxes));
+  const positions = Array.from({ length: maxVisibleBoxes }, (_, index) => {
+    const perShelf = 8;
+    const shelf = Math.floor(index / perShelf);
+    const shelfIndex = index % perShelf;
+    const column = shelfIndex % 4;
+    const depth = Math.floor(shelfIndex / 4);
+
+    return [
+      -1.12 + column * 0.75,
+      0.86 + shelf * 1.08,
+      -0.28 + depth * 0.56
+    ];
+  });
 
   return (
     <group position={position}>
@@ -44,16 +60,34 @@ function Rack({
         <ProductBox
           key={boxPosition.join("-")}
           position={boxPosition}
-          color={risk && selected ? "#f97316" : palette[index]}
+          color={highRisk && selected ? "#f97316" : moderateRisk && selected ? "#fbbf24" : palette[index % palette.length]}
           label={item?.sku_id || `SKU${index + 1}`}
-          quantity={Math.round(currentStock / visibleBoxes)}
+          quantity={unitsPerBox}
           selected={selected}
           onFocus={onFocus}
         />
       ))}
+      {selected && (
+        <Html distanceFactor={13} position={[0, 3.82, 0.68]} center>
+          <div className={`rack-tag ${
+            highRisk
+              ? "rack-tag-danger"
+              : moderateRisk
+                ? "rack-tag-warning"
+                : "rack-tag-safe"
+          }`}>
+            <strong>{item?.sku_id}</strong>
+            <span>{currentStock}u</span>
+          </div>
+        </Html>
+      )}
       <mesh position={[0, 4.05, 0]}>
         <boxGeometry args={[3.4, 0.12, 1.1]} />
-        <meshStandardMaterial color={risk && selected ? "#ef4444" : "#14b8a6"} emissive={risk && selected ? "#450a0a" : "#052e2b"} emissiveIntensity={0.35} />
+        <meshStandardMaterial
+          color={highRisk && selected ? "#ef4444" : moderateRisk && selected ? "#f59e0b" : "#14b8a6"}
+          emissive={highRisk && selected ? "#450a0a" : moderateRisk && selected ? "#451a03" : "#052e2b"}
+          emissiveIntensity={0.35}
+        />
       </mesh>
     </group>
   );

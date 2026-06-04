@@ -1,46 +1,32 @@
 function TopNavbar({
-  activeTab,
-  setActiveTab,
   inventory,
-  selectedSku,
-  onSelectSku
+  selectedSku
 }) {
-  const tabs = ["Overview", "Demand", "Inventory", "Warehouse", "Analytics"];
-  const skuList = (inventory.length
-    ? inventory
-    : [{ sku_id: "SKU1" }, { sku_id: "SKU2" }, { sku_id: "SKU3" }]
-  ).filter((item, index, list) =>
-    list.findIndex(nextItem => nextItem.sku_id === item.sku_id) === index
+  const totalStock = inventory.reduce(
+    (sum, item) => sum + (Number(item.current_stock) || 0),
+    0
   );
 
   return (
     <div className="top-navbar">
       <div className="logo-section">
         <h2>FMCG Inventory Dashboard</h2>
+        <span>Warehouse shelf intelligence</span>
       </div>
 
-      <div className="nav-tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            className={activeTab === tab ? "nav-btn active-nav" : "nav-btn"}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      <div className="sku-nav" aria-label="SKU list">
-        {skuList.map((item) => (
-          <button
-            key={item.sku_id}
-            className={selectedSku === item.sku_id ? "sku-chip active-sku" : "sku-chip"}
-            onClick={() => onSelectSku(item.sku_id)}
-          >
-            {item.sku_id}
-          </button>
-        ))}
+      <div className="nav-summary" aria-label="Dashboard summary">
+        <div>
+          <span>Selected SKU</span>
+          <strong>{selectedSku}</strong>
+        </div>
+        <div>
+          <span>Total Stock</span>
+          <strong>{totalStock || "--"}</strong>
+        </div>
+        <div>
+          <span>SKU Count</span>
+          <strong>{inventory.length || "--"}</strong>
+        </div>
       </div>
     </div>
   );

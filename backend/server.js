@@ -21,7 +21,6 @@ const fallbackInventory = [
 ];
 let mongoReady = false;
 
-// 🔗 MongoDB connection
 if (process.env.MONGO_URI) {
   mongoose.connect(process.env.MONGO_URI)
     .then(() => {
@@ -51,22 +50,56 @@ const getInventoryRecord = async (sku_id) => {
   return fallbackInventory.find(item => item.sku_id === sku_id);
 };
 
+const numberFromBody = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const inventoryFromRequest = (body) => {
+  if (body.current_stock === undefined && body.stock === undefined) return null;
+
+  const currentStock = numberFromBody(body.current_stock ?? body.stock, 0);
+  const leadTimeDays = numberFromBody(body.lead_time_days ?? body.leadTimeDays, 3);
+  const shelfCapacity = numberFromBody(body.shelf_capacity ?? body.shelfCapacity, Math.max(currentStock, 200));
+
+  return {
+    sku_id: body.sku_id,
+    current_stock: currentStock,
+    lead_time_days: leadTimeDays,
+    shelf_capacity: Math.max(shelfCapacity, currentStock, 1),
+    pending_orders: numberFromBody(body.pending_orders ?? body.pendingOrders, currentStock < 100 ? 4 : 2),
+    incoming_stock: numberFromBody(body.incoming_stock ?? body.incomingStock, currentStock < 100 ? 120 : 70)
+  };
+};
+
 const estimateDemand = ({ sku_id = "SKU1", month = 1, promotion = 0 }) => {
   const baseBySku = { SKU1: 34, SKU2: 26, SKU3: 42 };
+  const generatedBase = 24 + (
+    String(sku_id)
+      .split("")
+      .reduce((sum, char) => sum + char.charCodeAt(0), 0) % 22
+  );
   const seasonalLift = [11, 8, 5, 3, 6, 10, 14, 13, 7, 4, 9, 16][Number(month) - 1] || 6;
   const promoLift = Number(promotion) ? 15 : 0;
 
-  return (baseBySku[sku_id] || 30) + seasonalLift + promoLift;
+  return (baseBySku[sku_id] || generatedBase) + seasonalLift + promoLift;
 };
 
-/* ------------------ BASIC ROUTES ------------------ */
+const getRiskLevel = (currentStock, reorderPoint) => {
+  if (!Number.isFinite(currentStock) || !Number.isFinite(reorderPoint) || reorderPoint <= 0) {
+    return "LOW";
+  }
 
-// ✅ Test route
+  if (currentStock < reorderPoint) return "HIGH";
+  if (currentStock < reorderPoint * 1.25) return "MODERATE";
+  return "LOW";
+};
+
+// Basic health and data routes
 app.get("/", (req, res) => {
   res.send("API working");
 });
 
-// ✅ Get sample data
 app.get("/data", async (req, res) => {
   if (!mongoReady) return res.json([]);
 
@@ -74,7 +107,6 @@ app.get("/data", async (req, res) => {
   res.json(data);
 });
 
-// ✅ Aggregation
 app.get("/total-sales", async (req, res) => {
   if (!mongoReady) return res.json([]);
 
@@ -90,7 +122,6 @@ app.get("/total-sales", async (req, res) => {
   res.json(result);
 });
 
-// ✅ Full data for ML
 app.get("/ml-data", async (req, res) => {
   if (!mongoReady) return res.json([]);
 
@@ -98,9 +129,7 @@ app.get("/ml-data", async (req, res) => {
   res.json(data);
 });
 
-/* ------------------ ML ROUTE ------------------ */
-
-// ✅ Direct ML call
+// Proxy demand prediction requests to the ML service.
 app.post("/predict-demand", async (req, res) => {
   try {
     const response = await axios.post(
@@ -115,9 +144,7 @@ app.post("/predict-demand", async (req, res) => {
   }
 });
 
-/* ------------------ INVENTORY ROUTES ------------------ */
-
-// 🔹 Seed inventory (run once)
+// One-time helper for loading starter inventory records.
 app.get("/seed-inventory", async (req, res) => {
   try {
     await Inventory.deleteMany({});
@@ -134,7 +161,6 @@ app.get("/seed-inventory", async (req, res) => {
   }
 });
 
-// 🔹 Get inventory
 app.get("/inventory", async (req, res) => {
   if (!mongoReady) return res.json(fallbackInventory);
 
@@ -169,14 +195,11 @@ app.get("/dashboard-data", async (req, res) => {
   });
 });
 
-/* ------------------ FINAL CORE API ------------------ */
-
-// 🚀 Inventory + ML + IEM logic
+// Combines prediction, inventory, and reorder calculations for the dashboard.
 app.post("/inventory-analysis", async (req, res) => {
   try {
     console.log("Request:", req.body);
 
-    // 🔮 Step 1: ML Prediction
     let predictedDemand;
     let predictionSource = "ml";
 
@@ -186,7 +209,10 @@ app.post("/inventory-analysis", async (req, res) => {
         req.body
       );
 
-      predictedDemand = mlResponse.data.prediction;
+      predictedDemand = Number(mlResponse.data.prediction);
+      if (!Number.isFinite(predictedDemand)) {
+        throw new Error("Invalid ML prediction");
+      }
     } catch (err) {
       predictionSource = "estimate";
       predictedDemand = estimateDemand(req.body);
@@ -194,8 +220,7 @@ app.post("/inventory-analysis", async (req, res) => {
 
     console.log("Predicted Demand:", predictedDemand);
 
-    // 📦 Step 2: Get inventory
-    const inventory = await getInventoryRecord(req.body.sku_id);
+    const inventory = inventoryFromRequest(req.body) || await getInventoryRecord(req.body.sku_id);
 
     if (!inventory) {
       return res.status(400).json({ error: "Inventory not found" });
@@ -205,19 +230,14 @@ app.post("/inventory-analysis", async (req, res) => {
     const L = inventory.lead_time_days;
     const shelfCapacity = inventory.shelf_capacity || 200;
 
-    // 📊 Step 3: Safety Stock
     const Z = 1.65; // 95% service level
-    const sigma = predictedDemand * 0.2; // assume 20% variability
+    const sigma = predictedDemand * 0.2; // Rough demand variability estimate.
 
     const safetyStock = Z * sigma * Math.sqrt(L);
 
-    // 📦 Step 4: Reorder Point
     const reorderPoint = predictedDemand * L + safetyStock;
+    const risk = getRiskLevel(currentStock, reorderPoint);
 
-    // 🚨 Step 5: Risk calculation
-    const risk = currentStock < reorderPoint ? "HIGH" : "LOW";
-
-    // ✅ Final response
     res.json({
       sku_id: req.body.sku_id,
       predictedDemand: Number(predictedDemand.toFixed(2)),
@@ -226,9 +246,10 @@ app.post("/inventory-analysis", async (req, res) => {
       currentStock,
       shelfCapacity,
       leadTimeDays: L,
-      pendingOrders: inventory.pending_orders || (risk === "HIGH" ? 5 : 2),
-      incomingStock: inventory.incoming_stock || (risk === "HIGH" ? 120 : 70),
+      pendingOrders: inventory.pending_orders || (risk === "HIGH" ? 5 : risk === "MODERATE" ? 3 : 2),
+      incomingStock: inventory.incoming_stock || (risk === "HIGH" ? 120 : risk === "MODERATE" ? 90 : 70),
       stockoutGap: Number(Math.max(reorderPoint - currentStock, 0).toFixed(2)),
+      stockBuffer: Number((currentStock - reorderPoint).toFixed(2)),
       utilization: Number(((currentStock / shelfCapacity) * 100).toFixed(1)),
       risk,
       predictionSource
@@ -239,8 +260,6 @@ app.post("/inventory-analysis", async (req, res) => {
     res.status(500).json({ error: "Failed" });
   }
 });
-
-/* ------------------ START SERVER ------------------ */
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

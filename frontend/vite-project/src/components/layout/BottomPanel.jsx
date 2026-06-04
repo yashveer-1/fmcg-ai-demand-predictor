@@ -17,9 +17,11 @@ function BottomPanel({ result, dashboardData, selectedInventory }) {
 
   const health =
     result
-      ? result.currentStock > result.reorderPoint
+      ? result.risk === "LOW"
         ? "HEALTHY"
-        : "CRITICAL"
+        : result.risk === "MODERATE"
+          ? "WATCH"
+          : "CRITICAL"
       : "N/A";
   const leadTimePassed = (result?.leadTimeDays ?? selectedInventory?.lead_time_days ?? 0) <= 4;
   const capacityPassed = Number(shelfUtilization) <= 95;
@@ -57,7 +59,9 @@ function BottomPanel({ result, dashboardData, selectedInventory }) {
             className={
               health === "HEALTHY"
                 ? "health-good"
-                : "health-bad"
+                : health === "WATCH"
+                  ? "health-moderate"
+                  : "health-bad"
             }
           >
             {health}
@@ -93,8 +97,18 @@ function BottomPanel({ result, dashboardData, selectedInventory }) {
           <span>Incoming Stock</span>
           <h2>{incomingStock}</h2>
         </div>
-        <div className={result?.risk === "HIGH" ? "priority-box" : "priority-box calm"}>
-          {result?.risk === "HIGH" ? "HIGH PRIORITY" : "NORMAL PRIORITY"}
+        <div className={
+          result?.risk === "HIGH"
+            ? "priority-box"
+            : result?.risk === "MODERATE"
+              ? "priority-box watch"
+              : "priority-box calm"
+        }>
+          {result?.risk === "HIGH"
+            ? "HIGH PRIORITY"
+            : result?.risk === "MODERATE"
+              ? "BUFFER WATCH"
+              : "NORMAL PRIORITY"}
         </div>
       </div>
     </div>

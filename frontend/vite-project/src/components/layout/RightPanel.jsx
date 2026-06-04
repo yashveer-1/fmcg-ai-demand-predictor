@@ -1,18 +1,23 @@
 function RightPanel({ result, selectedInventory, onExport }) {
+  const displayRisk = {
+    HIGH: "HIGH RISK",
+    MODERATE: "MODERATE RISK",
+    LOW: "LOW RISK"
+  };
   const riskLevel =
     result
-      ? result.currentStock < result.reorderPoint
-        ? "HIGH RISK"
-        : "STABLE"
+      ? displayRisk[result.risk] ?? "LOW RISK"
       : selectedInventory
         ? "READY"
         : "NO DATA";
 
   const recommendation =
     result
-      ? result.currentStock < result.reorderPoint
+      ? result.risk === "HIGH"
         ? `Order ${Math.ceil(result.stockoutGap || 0)} units above current stock buffer.`
-        : "Inventory levels are healthy for the selected lead time."
+        : result.risk === "MODERATE"
+          ? `Maintain watch: buffer is ${Math.max(Math.round(result.stockBuffer || 0), 0)} units above reorder point.`
+          : "Inventory levels are healthy for the selected lead time."
       : "Run inventory analysis to calculate demand and reorder point.";
 
   return (
@@ -29,9 +34,11 @@ function RightPanel({ result, selectedInventory, onExport }) {
           className={
             riskLevel === "HIGH RISK"
               ? "risk-high"
-              : riskLevel === "NO DATA"
-                ? "risk-muted"
-                : "risk-safe"
+              : riskLevel === "MODERATE RISK"
+                ? "risk-moderate"
+                : riskLevel === "NO DATA"
+                  ? "risk-muted"
+                  : "risk-safe"
           }
         >
           {riskLevel}
@@ -72,12 +79,16 @@ function RightPanel({ result, selectedInventory, onExport }) {
         className={
           riskLevel === "HIGH RISK"
             ? "alert-box danger"
-            : "alert-box safe"
+            : riskLevel === "MODERATE RISK"
+              ? "alert-box warning"
+              : "alert-box safe"
         }
       >
         {riskLevel === "HIGH RISK"
           ? "Restock Required"
-          : "Inventory Stable"}
+          : riskLevel === "MODERATE RISK"
+            ? "Monitor Buffer"
+            : "Inventory Stable"}
       </div>
       <button
         className="export-btn"

@@ -5,16 +5,16 @@ import Sales from "../models/schema.js";
 import dotenv from "dotenv";
 
 dotenv.config();
-// 🔗 Connect DB
+
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"));
 
 const results = [];
 
-fs.createReadStream("data.csv") // keep CSV in backend root
+fs.createReadStream("data.csv")
   .pipe(csv())
   .on("data", (data) => {
-  console.log("ROW:", data); // 👈 IMPORTANT
+  console.log("ROW:", data);
   results.push({
     date: new Date(data.date),
     sku_id: data.sku_id,
@@ -25,7 +25,7 @@ fs.createReadStream("data.csv") // keep CSV in backend root
   });
 })
 .on("end", async () => {
-  console.log("Total rows read:", results.length); // 👈 IMPORTANT
+  console.log("Total rows read:", results.length);
 
   await Sales.deleteMany({});
   await Sales.insertMany(results);

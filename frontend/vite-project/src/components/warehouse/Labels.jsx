@@ -1,7 +1,16 @@
 import { Text } from "@react-three/drei";
 
 function Labels({ selectedSku, result }) {
-  const riskLabel = result?.risk === "HIGH" ? "Restock lane active" : "Stock flow normal";
+  const riskLabel = result?.risk === "HIGH"
+    ? "Restock lane active"
+    : result?.risk === "MODERATE"
+      ? "Buffer watch active"
+      : "Stock flow normal";
+  const labelColor = result?.risk === "HIGH"
+    ? "#fecaca"
+    : result?.risk === "MODERATE"
+      ? "#fde68a"
+      : "#bbf7d0";
 
   return (
     <>
@@ -18,7 +27,7 @@ function Labels({ selectedSku, result }) {
       <Text
         position={[8, 3.1, 2.8]}
         fontSize={0.38}
-        color={result?.risk === "HIGH" ? "#fecaca" : "#bbf7d0"}
+        color={labelColor}
         anchorX="center"
       >
         {riskLabel}

@@ -4,10 +4,19 @@ import pandas as pd
 
 app = Flask(__name__)
 
-# 🔹 Load model + mappings
+# Load the trained model and the category maps used during training.
 model = pickle.load(open("model.pkl", "rb"))
 sku_map = pickle.load(open("sku_map.pkl", "rb"))
 region_map = pickle.load(open("region_map.pkl", "rb"))
+
+def fallback_code(value, mapping):
+    if value in mapping:
+        return mapping[value]
+
+    if not mapping:
+        return 0
+
+    return sum(ord(char) for char in value) % len(mapping)
 
 @app.route("/", methods=["GET"])
 def home():
@@ -19,27 +28,22 @@ def predict():
         data = request.json
         print("Incoming data:", data)
 
-        # ✅ Convert to DataFrame
         df = pd.DataFrame([data])
 
-        # 🧹 Clean input (important)
+        # Keep these string fields in the same shape as the training data.
         df['sku_id'] = df['sku_id'].astype(str).str.strip()
         df['region'] = df['region'].astype(str).str.strip()
 
-        # 🔥 Use SAME encoding as training
-        df['sku_id'] = df['sku_id'].map(sku_map)
-        df['region'] = df['region'].map(region_map)
+        df['day'] = pd.to_numeric(df.get('day', 1), errors='coerce').fillna(1).clip(1, 31)
+        df['month'] = pd.to_numeric(df.get('month', 1), errors='coerce').fillna(1).clip(1, 12)
+        df['promotion'] = pd.to_numeric(df.get('promotion', 0), errors='coerce').fillna(0).clip(0, 1)
+
+        # Unknown values are assigned a stable code instead of failing the request.
+        df['sku_id'] = df['sku_id'].apply(lambda value: fallback_code(value, sku_map))
+        df['region'] = df['region'].apply(lambda value: fallback_code(value, region_map))
 
         print("After encoding:\n", df)
 
-        # 🚨 Check encoding failure
-        if df.isnull().any().any():
-            return jsonify({
-                "error": "Invalid SKU or Region",
-                "received": data
-            }), 400
-
-        # 🔹 Ensure correct types
         df = df.astype({
             "sku_id": int,
             "region": int,
@@ -48,12 +52,11 @@ def predict():
             "promotion": int
         })
 
-        # 🔹 Match training feature order EXACTLY
+        # XGBoost expects the same feature order used during training.
         df = df[['sku_id', 'region', 'day', 'month', 'promotion']]
 
         print("Final DF types:\n", df.dtypes)
 
-        # 🤖 Predict
         prediction = model.predict(df)
 
         return jsonify({
