@@ -145,7 +145,7 @@ function Dashboard() {
       setResult(normalizeAnalysis(res.data, inventoryItem));
     } catch (err) {
       console.log(err);
-      setError("Backend is not reachable yet. Start the backend server and try again.");
+      setError("Backend is not reachable yet. Please try again in a moment.");
     } finally {
       setLoading(false);
     }
@@ -162,9 +162,9 @@ function Dashboard() {
         setDashboardData(dashboardRes.data);
         const inventoryItem = dashboardRes.data.inventory?.find(item => item.sku_id === initialForm.sku_id);
         setResult(normalizeAnalysis(analysisRes.data, inventoryItem));
-      } catch (err) {
-        console.log(err);
-        setError("Dashboard data could not be loaded from the backend.");
+    } catch (err) {
+      console.log(err);
+      setError("Dashboard data could not be loaded from the hosted backend.");
       } finally {
         setLoading(false);
       }
