@@ -21,9 +21,23 @@ frontend/vite-project/
 - Backend: Node.js, Express, MongoDB, Mongoose
 - ML: Python, Flask, XGBoost
 
+## Live Deployment
+
+Frontend:
+
+```text
+https://fmcg-ai-demand-predictor.vercel.app/
+```
+
+Backend:
+
+```text
+https://fmcg-ai-demand-predictor.onrender.com
+```
+
 ## Hosted Backend
 
-The frontend is currently connected to:
+The frontend is currently connected to the Render backend:
 
 ```text
 https://fmcg-ai-demand-predictor.onrender.com
