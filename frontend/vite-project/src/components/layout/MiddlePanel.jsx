@@ -1,5 +1,5 @@
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Grid, Environment, PerspectiveCamera } from "@react-three/drei";
+import { OrbitControls, Grid, PerspectiveCamera } from "@react-three/drei";
 import { Suspense, useMemo, useState } from "react";
 
 import WarehouseScene from "../warehouse/WarehouseScene";
@@ -54,8 +54,6 @@ function MiddlePanel({ result, inventory, selectedSku }) {
             shadow-mapSize={[1024, 1024]}
           />
           <pointLight position={[-6, 4, -5]} intensity={1.2} color="#14b8a6" />
-
-          <Environment preset="warehouse" />
 
           <Grid
             args={[30, 30]}
